@@ -1,0 +1,77 @@
+/* Sprint Copilot — Custom Theme */
+
+/* Hide the thread history sidebar entirely */
+[data-testid="sidebar"] {
+  display: none !important;
+}
+
+/* Hide the sidebar toggle button */
+button[data-testid="sidebar-toggle"],
+button[id="sidebar-toggle"] {
+  display: none !important;
+}
+
+/* Clean up the header */
+.MuiAppBar-root,
+header {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Make the chat container feel more focused */
+.cl-chat-container {
+  max-width: 900px !important;
+  margin: 0 auto !important;
+}
+
+/* Style the starters/welcome area */
+.cl-starters {
+  gap: 12px !important;
+}
+
+.cl-starter {
+  border: 1px solid hsl(215 28% 20%) !important;
+  border-radius: 12px !important;
+  transition: all 0.2s ease !important;
+}
+
+.cl-starter:hover {
+  border-color: hsl(243 75% 59%) !important;
+  background: hsl(243 75% 59% / 0.08) !important;
+}
+
+/* Style messages */
+.cl-message {
+  border-radius: 12px !important;
+}
+
+/* Style the input area */
+.cl-composer {
+  border-radius: 16px !important;
+  border: 1px solid hsl(215 28% 20%) !important;
+}
+
+.cl-composer:focus-within {
+  border-color: hsl(243 75% 59%) !important;
+}
+
+/* Tool steps — make them look like agent actions */
+.cl-step {
+  border-left: 3px solid hsl(243 75% 59%) !important;
+  margin-left: 8px !important;
+  padding-left: 12px !important;
+}
+
+/* Welcome markdown */
+.cl-welcome-markdown {
+  text-align: center !important;
+}
+
+.cl-welcome-markdown h1 {
+  font-size: 1.8rem !important;
+  font-weight: 700 !important;
+  background: linear-gradient(135deg, hsl(243 75% 65%), hsl(280 70% 60%)) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}

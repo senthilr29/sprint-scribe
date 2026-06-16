@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+python-multipart
+openai
+atlassian-python-api
+PyGithub
+python-dotenv
+pyyaml

@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprint Scribe</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script>
+// Fallback if DOMPurify CDN fails to load
+if(typeof DOMPurify==='undefined'){window.DOMPurify={sanitize:function(s){return s.replace(/</g,'&lt;').replace(/>/g,'&gt;')}};}
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #f7f8fc;
+    --surface: #ffffff;
+    --surface-solid: #ffffff;
+    --surface-2: #f0f1f7;
+    --surface-3: #e8eaf2;
+    --border: rgba(0,0,0,0.06);
+    --border-light: rgba(0,0,0,0.10);
+    --text: #181b25;
+    --text-dim: #8890a7;
+    --text-mid: #5c6280;
+    --accent: #4f46e5;
+    --accent-2: #4338ca;
+    --accent-soft: rgba(79,70,229,0.07);
+    --accent-glow: rgba(79,70,229,0.14);
+    --accent-subtle: rgba(79,70,229,0.04);
+    --green: #10b981;
+    --green-soft: rgba(16,185,129,0.1);
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+    --shadow-lg: 0 4px 20px rgba(0,0,0,0.08);
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    background-image: radial-gradient(circle, rgba(79,70,229,0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Background */
+  .bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .bg .orb { position: absolute; border-radius: 50%; filter: blur(180px); opacity: 0.04; animation: drift 30s ease-in-out infinite; }
+  .bg .o1 { width: 700px; height: 700px; background: #818cf8; top: -250px; left: -150px; }
+  .bg .o2 { width: 550px; height: 550px; background: #a78bfa; bottom: -200px; right: -120px; animation-delay: -12s; }
+  @keyframes drift { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,-20px)} }
+
+  /* Header */
+  .hdr {
+    position: relative; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px 10px;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 3px solid var(--accent);
+  }
+  .hdr-left { display: flex; align-items: center; gap: 14px; }
+  .hdr-logo {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #4f46e5 0%, #6d5ced 50%, #7c3aed 100%);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+    box-shadow: 0 2px 8px rgba(79,70,229,0.2);
+  }
+  .hdr-name { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; color: var(--text); }
+  .hdr-status { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; margin-top: 3px; letter-spacing: 0.1px; flex-wrap: wrap; }
+  .hdr-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); animation: blink 2.5s ease-in-out infinite; }
+  /* Per-integration health pills — quiet by design; you notice them, execs don't */
+  .int-pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 2px; }
+  .int-dot { width: 6px; height: 6px; border-radius: 50%; background: #d1d5db; transition: background .25s; }
+  .int-pill.ok  .int-dot { background: var(--green); }
+  .int-pill.down .int-dot { background: var(--red); }
+  .int-pill.unknown .int-dot { background: var(--orange); }
+  .int-pill.down { color: #9ca3af; }  /* slight de-emphasis when down — still calm */
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+  .btn-new {
+    background: var(--surface); border: 1px solid var(--border-light);
+    color: var(--text-mid); padding: 7px 16px; border-radius: 8px;
+    cursor: pointer; font: 500 12px/1 'Inter',sans-serif;
+    transition: all .2s;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-new:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
+
+  /* Chat area */
+  .chat { position: relative; z-index: 10; flex: 1; overflow-y: auto; padding: 24px 20px; display: flex; flex-direction: column; gap: 4px; }
+  .chat::-webkit-scrollbar { width: 5px; }
+  .chat::-webkit-scrollbar-track { background: transparent; }
+  .chat::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.08); border-radius: 4px; }
+  .chat::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.14); }
+
+  /* Message groups */
+  .msg-group { max-width: 720px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 4px; }
+
+  /* Bot message row */
+  .bot-row { display: flex; gap: 10px; align-items: flex-start; animation: fadeIn .35s ease; }
+  .bot-avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #4f46e5, #6d5ced);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; margin-top: 4px;
+    box-shadow: 0 2px 6px rgba(79,70,229,0.18);
+  }
+  .bot-avatar.thinking-av { animation: pulse-av 1.8s ease-in-out infinite; }
+  @keyframes pulse-av { 0%,100%{box-shadow: 0 2px 6px rgba(79,70,229,0.18)} 50%{box-shadow: 0 2px 6px rgba(79,70,229,0.18), 0 0 0 8px transparent} }
+
+  .bot-content { flex: 1; min-width: 0; }
+  .bot-name { font-size: 10px; font-weight: 600; color: var(--text-dim); margin-bottom: 5px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+  .bot-bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 2px 14px 14px 14px;
+    padding: 16px 18px;
+    font-size: 13.5px; line-height: 1.75;
+    box-shadow: var(--shadow-sm);
+    color: #2d3142;
+  }
+
+  /* User message */
+  .user-row { display: flex; justify-content: flex-end; animation: fadeIn .25s ease; max-width: 720px; width: 100%; margin: 12px auto 4px; }
+  .user-bubble {
+    background: linear-gradient(135deg, #4f46e5 0%, #5b4fd6 100%);
+    color: white;
+    border-radius: 14px 14px 4px 14px;
+    padding: 10px 16px;
+    font-size: 13.5px; line-height: 1.55;
+    max-width: 70%;
+    box-shadow: 0 2px 10px rgba(79,70,229,0.18);
+  }
+
+  /* Markdown in bot bubbles */
+  .bot-bubble strong { color: #3730a3; font-weight: 600; }
+  .bot-bubble h1,.bot-bubble h2,.bot-bubble h3 { margin: 14px 0 6px; color: var(--text); }
+  .bot-bubble h2 { font-size: 14px; font-weight: 700; letter-spacing: -0.1px; }
+  .bot-bubble h3 { font-size: 13px; font-weight: 600; color: #3730a3; }
+  .bot-bubble p { margin: 6px 0; }
+  .bot-bubble ul { padding-left: 18px; margin: 8px 0; }
+  .bot-bubble li { margin: 4px 0; }
+  .bot-bubble li::marker { color: var(--text-dim); }
+  .bot-bubble code { background: rgba(79,70,229,0.06); color: #3730a3; padding: 2px 7px; border-radius: 4px; font-size: 12.5px; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .bot-bubble hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+  .bot-bubble table { border-collapse: separate; border-spacing: 0; margin: 12px 0; width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+  .bot-bubble th,.bot-bubble td { border: none; border-bottom: 1px solid var(--border); padding: 8px 12px; text-align: left; font-size: 12.5px; }
+  .bot-bubble th { background: var(--surface-2); color: #3730a3; font-weight: 600; font-size: 11px; letter-spacing: 0.3px; text-transform: uppercase; }
+  .bot-bubble td { color: #3d4259; }
+  .bot-bubble tr:last-child td { border-bottom: none; }
+  .bot-bubble tr:hover td { background: var(--accent-subtle); }
+
+  /* Tool steps */
+  .tool-step {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 11px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px; color: var(--text-mid);
+    animation: fadeIn .3s ease;
+    margin: 2px 0;
+    letter-spacing: 0.1px;
+  }
+  .tool-step.running { border-color: rgba(79,70,229,0.15); color: var(--text); background: rgba(79,70,229,0.03); }
+  .tool-step.done { border-color: rgba(16,185,129,0.12); background: rgba(16,185,129,0.03); }
+  .tool-spinner { width: 11px; height: 11px; border: 1.5px solid rgba(79,70,229,0.15); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  .tool-check { color: var(--green); font-weight: 600; font-size: 11px; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  /* Thinking dots */
+  .thinking-dots { display: flex; align-items: center; gap: 5px; padding: 10px 16px; }
+  .thinking-dots::before { content: 'Thinking'; font-size: 11px; color: var(--text-dim); margin-right: 4px; letter-spacing: 0.2px; }
+  .thinking-dots span { width: 4px; height: 4px; background: var(--accent); border-radius: 50%; animation: wave 1.4s ease-in-out infinite; }
+  .thinking-dots span:nth-child(2) { animation-delay: .15s; }
+  .thinking-dots span:nth-child(3) { animation-delay: .3s; }
+  @keyframes wave { 0%,60%,100%{transform:translateY(0);opacity:.25} 30%{transform:translateY(-5px);opacity:1} }
+
+  /* Timestamp */
+  .msg-time { font-size: 10px; color: var(--text-dim); opacity: 0.5; margin-top: 4px; }
+
+  /* Charts */
+  .chart-container {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin: 12px 0;
+    box-shadow: var(--shadow-sm);
+  }
+  .chart-container canvas { max-height: 260px; }
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 600px) { .chart-grid { grid-template-columns: 1fr; } }
+
+  /* Suggestions */
+  .suggestions {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 12px;
+    animation: fadeIn .4s ease;
+  }
+  .suggestion {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 12px; font-weight: 500;
+    color: var(--text-mid);
+    cursor: pointer;
+    transition: all .2s cubic-bezier(.4,0,.2,1);
+    font-family: inherit;
+  }
+  .suggestion:hover {
+    background: var(--accent-soft);
+    border-color: rgba(79,70,229,0.2);
+    color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 12px rgba(79,70,229,0.1);
+  }
+
+  /* Welcome */
+  .welcome {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    max-width: 660px; width: 100%; margin: 0 auto; padding: 0 20px;
+    animation: welcomeIn .5s ease;
+  }
+  @keyframes welcomeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+  .welcome-greeting { text-align: center; padding: 0 0 24px; }
+  .welcome-greeting h2 {
+    font-size: 36px; font-weight: 800; margin-bottom: 10px; letter-spacing: -1px;
+    background: linear-gradient(135deg, #312e81, #4f46e5, #7c3aed);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .welcome-greeting p { color: var(--text-dim); font-size: 15px; line-height: 1.6; max-width: 400px; margin: 0 auto; }
+  .welcome-logo {
+    width: 52px; height: 52px; border-radius: 15px; margin: 0 auto 14px;
+    background: linear-gradient(140deg, #312e81, #4f46e5 50%, #6d5ced);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; color: white;
+    box-shadow: 0 4px 18px rgba(79,70,229,0.2);
+    animation: float 5s ease-in-out infinite;
+  }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+  .welcome-cards {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; width: 100%;
+  }
+  .welcome-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 14px 13px; cursor: pointer;
+    transition: all .2s cubic-bezier(.4,0,.2,1);
+    text-align: left;
+    box-shadow: var(--shadow-sm);
+  }
+  .welcome-card:hover {
+    border-color: rgba(79,70,229,0.22); background: rgba(79,70,229,0.03);
+    transform: translateY(-1px); box-shadow: 0 3px 14px rgba(79,70,229,0.09);
+  }
+  .welcome-card-icon {
+    font-size: 16px; margin-bottom: 8px;
+    width: 32px; height: 32px;
+    background: var(--surface-2);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .2s;
+  }
+  .welcome-card:hover .welcome-card-icon { background: rgba(79,70,229,0.08); }
+  .welcome-card-title { font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 2px; letter-spacing: -0.1px; }
+  .welcome-card-desc { font-size: 10.5px; color: var(--text-dim); line-height: 1.4; }
+  .welcome-divider { width: 28px; height: 1px; background: var(--border-light); margin: 0 auto 18px; border-radius: 1px; }
+
+  .welcome-actions { display: flex; flex-direction: column; gap: 8px; }
+  .welcome-section-label { font-size: 11px; font-weight: 600; color: var(--text-dim); letter-spacing: 0.5px; text-transform: uppercase; margin: 16px 0 8px; }
+
+  .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .action-card {
+    flex: 1; min-width: 180px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all .25s cubic-bezier(.4,0,.2,1);
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .action-card:hover {
+    border-color: rgba(99,102,241,0.3);
+    background: var(--accent-soft);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px var(--accent-glow);
+  }
+  .action-icon {
+    width: 36px; height: 36px;
+    background: var(--surface-2);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .action-card:hover .action-icon { background: var(--accent-soft); }
+  .action-label { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .action-desc { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
+
+  /* Quick action bar */
+  .quick-actions {
+    position: relative; z-index: 10;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 28px;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+  .quick-actions::-webkit-scrollbar { display: none; }
+  .qa-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px;
+    background: var(--surface);
+    border: 1.5px solid var(--border-light);
+    border-radius: 20px;
+    font: 600 11.5px/1 'Inter',sans-serif;
+    color: var(--text-mid);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all .25s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .qa-btn:hover {
+    color: var(--accent); background: var(--accent-soft);
+    border-color: rgba(79,70,229,0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(79,70,229,0.12);
+  }
+  .qa-btn span.qa-icon { font-size: 13px; }
+  .qa-divider { width: 1px; height: 18px; background: var(--border-light); flex-shrink: 0; margin: 0 2px; }
+
+  /* Input area */
+  .input-area {
+    position: relative; z-index: 10;
+    padding: 14px 20px 18px;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+  }
+
+  .img-preview {
+    display: none; align-items: center; gap: 8px;
+    padding: 8px 12px; margin-bottom: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    max-width: 720px; margin-left: auto; margin-right: auto;
+    animation: fadeIn .3s;
+  }
+  .img-preview img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
+  .img-preview .fname { font-size: 12px; color: var(--text-dim); flex: 1; }
+  .img-preview .rm { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 4px; }
+
+  .input-box {
+    max-width: 720px; margin: 0 auto;
+    display: flex; gap: 8px; align-items: flex-end;
+  }
+  .input-wrap {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    display: flex; align-items: flex-end;
+    padding: 3px; transition: all .25s;
+    box-shadow: var(--shadow-sm);
+  }
+  .input-wrap:focus-within { border-color: rgba(79,70,229,0.35); box-shadow: 0 0 0 3px rgba(79,70,229,0.06); }
+
+  .input-wrap textarea {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font: 13.5px/1.5 'Inter',sans-serif;
+    padding: 9px 12px; resize: none; max-height: 100px;
+  }
+  .input-wrap textarea::placeholder { color: #b0b5c8; }
+  .btn-clip { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 9px 6px 9px 10px; font-size: 15px; transition: color .2s; }
+  .btn-clip:hover { color: var(--accent); }
+
+  .btn-send {
+    width: 40px; height: 40px; border-radius: 10px; border: none;
+    background: linear-gradient(135deg, #4f46e5, #5b4fd6);
+    color: white; font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s; flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(79,70,229,0.2);
+  }
+  .btn-send:hover { transform: translateY(-1px); box-shadow: 0 3px 12px rgba(79,70,229,0.25); }
+  .btn-send:disabled { opacity: .25; cursor: not-allowed; transform: none; }
+
+  .input-hint { text-align: center; font-size: 10px; color: var(--text-dim); margin-top: 6px; opacity: .4; letter-spacing: 0.1px; }
+
+  /* Settings modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface-solid); border: 1px solid var(--border-light);
+    border-radius: 14px; padding: 28px; width: 480px; max-width: 90vw;
+    animation: fadeIn .25s ease;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+  }
+  .modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .modal .modal-sub { font-size: 13px; color: var(--text-dim); margin-bottom: 20px; }
+  .modal label { display: block; font-size: 12px; font-weight: 600; color: var(--text-mid); margin-bottom: 6px; letter-spacing: 0.3px; text-transform: uppercase; }
+  .modal input {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--border-light);
+    border-radius: 10px; padding: 10px 14px; color: var(--text);
+    font: 14px 'Inter',sans-serif; margin-bottom: 16px; outline: none;
+    transition: border-color .2s;
+  }
+  .modal input:focus { border-color: var(--accent); }
+  .modal input::placeholder { color: var(--text-dim); }
+  .modal .hint { font-size: 11px; color: var(--text-dim); margin-top: -12px; margin-bottom: 16px; }
+
+  .chip-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; max-height: 160px; overflow-y: auto; }
+  .chip {
+    padding: 6px 12px; border-radius: 7px; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all .2s; border: 1px solid var(--border-light);
+    background: var(--surface-2); color: var(--text-dim); user-select: none;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.2); }
+  .chip .chip-name { font-weight: 400; margin-left: 2px; color: inherit; opacity: .7; font-size: 11px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+  .modal-actions button {
+    padding: 9px 20px; border-radius: 10px; font: 500 13px 'Inter',sans-serif;
+    cursor: pointer; transition: all .2s;
+  }
+  .btn-cancel { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-mid); }
+  .btn-cancel:hover { border-color: var(--border-light); color: var(--text); }
+  .btn-save { background: var(--accent); border: none; color: white; }
+  .btn-save:hover { background: #4f46e5; }
+
+  .btn-gear {
+    background: var(--surface); border: 1px solid var(--border-light);
+    color: var(--text-dim); width: 34px; height: 34px; border-radius: 8px;
+    cursor: pointer; font-size: 14px; display: flex; align-items: center;
+    justify-content: center; transition: all .2s;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-gear:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
+
+  .hdr-right { display: flex; gap: 8px; align-items: center; }
+
+  /* Prediction accuracy badge — the "it learns" proof, always visible */
+  .acc-badge {
+    display: none; align-items: center; gap: 6px;
+    background: var(--green-soft); color: #047857;
+    border: 1px solid rgba(16,185,129,0.22);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.2px;
+    padding: 5px 11px; border-radius: 999px; cursor: pointer;
+    transition: all .2s; white-space: nowrap;
+  }
+  .acc-badge.show { display: inline-flex; }
+  .acc-badge:hover { background: rgba(16,185,129,0.16); border-color: rgba(16,185,129,0.4); }
+  .acc-badge .acc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(16,185,129,0.18); }
+  .acc-badge .acc-sub { font-weight: 500; opacity: .75; }
+
+  /* Highlighted quick action (Send Daily Digest) */
+  .qa-btn.qa-primary {
+    background: var(--accent-soft); border-color: rgba(79,70,229,0.25); color: var(--accent-2); font-weight: 600;
+  }
+  .qa-btn.qa-primary:hover { background: var(--accent-glow); border-color: var(--accent); }
+
+  /* Project tags in header */
+  .project-tags { display: flex; gap: 4px; margin-left: 12px; }
+  .ptag {
+    background: rgba(79,70,229,0.06); color: #3730a3;
+    font-size: 10px; font-weight: 600; padding: 3px 8px;
+    border-radius: 5px; letter-spacing: 0.3px;
+    border: 1px solid rgba(79,70,229,0.08);
+  }
+
+  @media (max-width: 680px) {
+    .welcome-cards { grid-template-columns: 1fr 1fr; }
+    .quick-actions { justify-content: flex-start; }
+  }
+
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+
+<div class="bg"><div class="orb o1"></div><div class="orb o2"></div></div>
+
+<!-- Header -->
+<div class="hdr">
+  <div class="hdr-left">
+    <div class="hdr-logo">🚀</div>
+    <div>
+      <div class="hdr-name">Sprint Scribe</div>
+      <div class="hdr-status" id="hdrIntegrations">
+        <span class="int-pill unknown" id="int-jira"><span class="int-dot"></span>Jira</span>
+        <span class="int-pill unknown" id="int-github"><span class="int-dot"></span>GitHub</span>
+        <span class="int-pill unknown" id="int-confluence"><span class="int-dot"></span>Confluence</span>
+        <span class="int-pill unknown" id="int-gchat"><span class="int-dot"></span>Google Chat</span>
+      </div>
+    </div>
+    <div class="project-tags" id="projectTags"></div>
+  </div>
+  <div class="hdr-right">
+    <div class="acc-badge" id="accBadge" onclick="quickAction('What is your spillover prediction track record?')" title="Spillover prediction accuracy — click for details">
+      <span class="acc-dot"></span><span id="accPct">—</span>
+      <span class="acc-sub" id="accSub">accurate</span>
+    </div>
+    <button class="btn-gear" onclick="openSettings()" title="Settings">⚙</button>
+    <button class="btn-new" onclick="clearChat()">+ New Chat</button>
+  </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="quick-actions">
+  <button class="qa-btn" onclick="quickAction('Give me the morning briefing')"><span class="qa-icon">☀️</span> Morning Brief</button>
+  <button class="qa-btn" onclick="quickAction('Show pending PRs that need review')"><span class="qa-icon">🔍</span> Pending PRs</button>
+  <button class="qa-btn" onclick="quickAction('What tickets are at risk of spilling?')"><span class="qa-icon">🔮</span> Spillover Risk</button>
+  <button class="qa-btn" onclick="quickAction('What is your spillover prediction track record?')"><span class="qa-icon">📈</span> Track Record</button>
+  <div class="qa-divider"></div>
+  <button class="qa-btn" onclick="quickAction('Show sprint retro analysis')"><span class="qa-icon">🔁</span> Sprint Retro</button>
+  <button class="qa-btn" onclick="quickAction('Show sprint charts and velocity trend')"><span class="qa-icon">📈</span> Sprint Charts</button>
+  <button class="qa-btn" onclick="showTeamPicker()"><span class="qa-icon">👤</span> 1:1 Prep</button>
+  <div class="qa-divider"></div>
+  <button class="qa-btn qa-primary" onclick="sendDigest()"><span class="qa-icon">☀️</span> Send Daily Digest</button>
+</div>
+
+<!-- Chat -->
+<div class="chat" id="chat">
+  <div id="welcomeScreen" class="welcome">
+    <div class="welcome-greeting">
+      <div class="welcome-logo">🚀</div>
+      <h2 class="dynamic-greeting">Good morning</h2>
+      <p>What would you like to know about your teams today? Pick a quick action above, or just ask.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Input -->
+<div class="input-area">
+  <div class="img-preview" id="imgPreview">
+    <img id="prevImg" src="" alt="">
+    <span class="fname" id="prevName"></span>
+    <button class="rm" onclick="rmImg()">✕</button>
+  </div>
+  <div class="input-box">
+    <div class="input-wrap">
+      <button class="btn-clip" onclick="document.getElementById('fileIn').click()" title="Attach screenshot">📎</button>
+      <textarea id="inp" rows="1" placeholder="Ask about a ticket, sprint, or team member..." onkeydown="onKey(event)" oninput="autoH(this)"></textarea>
+      <input type="file" id="fileIn" accept="image/*" style="display:none" onchange="onFile(this)">
+    </div>
+    <button class="btn-send" id="sendBtn" onclick="sendMsg()">↑</button>
+  </div>
+  <div class="input-hint">Enter to send · Shift+Enter for new line · 📎 Attach screenshots · Powered by OpenAI</div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h3>Settings</h3>
+    <div class="modal-sub">Configure which Jira projects and GitHub repos to monitor</div>
+
+    <label>Jira Projects</label>
+    <div class="chip-grid" id="projectChips"><span class="hint">Loading projects...</span></div>
+    <input type="hidden" id="sJiraProjects">
+    <div class="hint">Click to toggle projects you want to monitor</div>
+
+    <label>Default Project for New Tickets</label>
+    <input type="text" id="sCreateProject" placeholder="VS">
+    <div class="hint">Which project to create tickets in by default</div>
+
+    <label>GitHub Repos (optional)</label>
+    <input type="text" id="sGithubRepos" placeholder="reputation, meetings, galaxy">
+    <div class="hint">Comma-separated repo names for PR lookup. Leave blank to skip.</div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeSettings()">Cancel</button>
+      <button class="btn-save" onclick="saveSettings()">Save & Restart Chat</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- Settings ---
+let allJiraProjects=[];
+let selectedProjects=new Set();
+
+async function loadSettings(){
+  const r=await fetch('/api/settings');
+  const s=await r.json();
+  selectedProjects=new Set((s.jira_projects||'').split(',').map(p=>p.trim()).filter(Boolean));
+  document.getElementById('sCreateProject').value=s.create_project||'';
+  document.getElementById('sGithubRepos').value=s.github_repos||'';
+  renderTags(s.jira_projects);
+}
+
+async function loadJiraProjects(){
+  const grid=document.getElementById('projectChips');
+  grid.innerHTML='<span class="hint" style="margin:0">Loading projects from Jira...</span>';
+  try{
+    const r=await fetch('/api/jira-projects');
+    allJiraProjects=await r.json();
+    if(allJiraProjects.error){grid.innerHTML=`<span class="hint" style="margin:0">Error: ${allJiraProjects.error}</span>`;return;}
+    renderChips();
+  }catch(e){grid.innerHTML='<span class="hint" style="margin:0">Failed to load projects</span>';}
+}
+
+function renderChips(){
+  const grid=document.getElementById('projectChips');
+  grid.innerHTML=allJiraProjects.map(p=>
+    `<div class="chip ${selectedProjects.has(p.key)?'active':''}" onclick="toggleProject('${p.key}')">${p.key}<span class="chip-name">${p.name}</span></div>`
+  ).join('');
+}
+
+function toggleProject(key){
+  if(selectedProjects.has(key))selectedProjects.delete(key);
+  else selectedProjects.add(key);
+  renderChips();
+}
+
+function renderTags(projects){
+  const c=document.getElementById('projectTags');
+  c.innerHTML=(projects||'').split(',').map(p=>p.trim()).filter(Boolean).map(p=>`<span class="ptag">${p}</span>`).join('');
+}
+
+function openSettings(){
+  document.getElementById('settingsModal').classList.add('open');
+  loadSettings().then(()=>loadJiraProjects());
+}
+function closeSettings(){document.getElementById('settingsModal').classList.remove('open');}
+
+async function saveSettings(){
+  const projects=[...selectedProjects].join(',');
+  const fd=new FormData();
+  fd.append('jira_projects',projects);
+  fd.append('create_project',document.getElementById('sCreateProject').value);
+  fd.append('github_repos',document.getElementById('sGithubRepos').value);
+  await fetch('/api/settings',{method:'POST',body:fd});
+  closeSettings();
+  renderTags(projects);
+  clearChat();
+}
+// Close modal on overlay click
+document.getElementById('settingsModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSettings();});
+// Load tags on startup
+loadSettings();
+
+// --- Markdown ---
+function md(t) {
+  return t
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g,'<em>$1</em>')
+    .replace(/`(.+?)`/g,'<code>$1</code>')
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+    .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+    .replace(/^---$/gm,'<hr>')
+    .replace(/^\|(.+)\|$/gm,(m,c)=>{
+      if(/^[\s\-|:]+$/.test(c))return'';
+      return '<tr>'+c.split('|').map(x=>`<td>${x.trim()}</td>`).join('')+'</tr>';
+    })
+    .replace(/((<tr>.*<\/tr>\s*)+)/g,'<table>$1</table>')
+    .replace(/(^- .+$(\n|$))+/gm,b=>{
+      return '<ul>'+b.trim().split('\n').map(l=>`<li>${l.replace(/^- /,'')}</li>`).join('')+'</ul>';
+    })
+    .replace(/\n\n/g,'</p><p>')
+    .replace(/\n/g,'<br>');
+}
+
+let pendingFile=null, loading=false, botMsgCount=0, pendingChartData=null, pendingPersonChart=null;
+
+function autoH(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
+function onKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
+function scroll(){document.getElementById('chat').scrollTo({top:999999,behavior:'smooth'});}
+
+function onFile(i){
+  const f=i.files[0];if(!f)return;
+  pendingFile=f;
+  document.getElementById('prevImg').src=URL.createObjectURL(f);
+  document.getElementById('prevName').textContent=f.name;
+  document.getElementById('imgPreview').style.display='flex';
+}
+function rmImg(){pendingFile=null;document.getElementById('imgPreview').style.display='none';document.getElementById('fileIn').value='';}
+
+// Hide welcome
+function hideWelcome(){
+  const w=document.getElementById('welcomeScreen');
+  if(w){w.style.opacity='0';w.style.transition='opacity .3s';setTimeout(()=>w.remove(),300);}
+}
+
+// Add user message
+function addUser(text){
+  hideWelcome();
+  const d=document.createElement('div');d.className='user-row';
+  d.innerHTML=`<div class="user-bubble">${text.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>`;
+  document.getElementById('chat').appendChild(d);
+  scroll();
+}
+
+// Create bot message group (avatar + content area)
+function createBotGroup(){
+  const chat=document.getElementById('chat');
+  const grp=document.createElement('div');grp.className='msg-group';
+  const row=document.createElement('div');row.className='bot-row';
+  row.innerHTML=`
+    <div class="bot-avatar" id="botAv${botMsgCount}">🚀</div>
+    <div class="bot-content" id="botContent${botMsgCount}">
+      <div class="bot-name">Sprint Scribe</div>
+    </div>`;
+  grp.appendChild(row);
+  chat.appendChild(grp);
+  return botMsgCount++;
+}
+
+// Show thinking
+function showThinking(gid){
+  const c=document.getElementById('botContent'+gid);
+  const d=document.createElement('div');d.className='thinking-dots';d.id='think'+gid;
+  d.innerHTML='<span></span><span></span><span></span>';
+  c.appendChild(d);
+  document.getElementById('botAv'+gid).classList.add('thinking-av');
+  scroll();
+}
+function hideThinking(gid){
+  const t=document.getElementById('think'+gid);if(t)t.remove();
+  document.getElementById('botAv'+gid)?.classList.remove('thinking-av');
+}
+
+// Tool step
+function addTool(gid,name,icon,running){
+  hideThinking(gid);
+  const c=document.getElementById('botContent'+gid);
+  const s=document.createElement('div');
+  s.className='tool-step '+(running?'running':'done');
+  s.id='ts-'+gid+'-'+name.replace(/\s/g,'-');
+  s.innerHTML=`<span>${icon}</span><span>${name}${running?'...':''}</span>${running?'<div class="tool-spinner"></div>':'<span class="tool-check">✓</span>'}`;
+  c.appendChild(s);
+  scroll();
+}
+function toolDone(gid,name){
+  const s=document.getElementById('ts-'+gid+'-'+name.replace(/\s/g,'-'));
+  if(s){
+    s.className='tool-step done';
+    s.querySelector('.tool-spinner')?.remove();
+    const nm=s.querySelectorAll('span')[1];if(nm)nm.textContent=name;
+    const ck=document.createElement('span');ck.className='tool-check';ck.textContent='✓';s.appendChild(ck);
+  }
+}
+
+// Bot answer with typing animation
+async function addBotAnswer(gid,text,suggestions){
+  hideThinking(gid);
+  const c=document.getElementById('botContent'+gid);
+  const b=document.createElement('div');b.className='bot-bubble';
+  c.appendChild(b);
+
+  // Typing animation — render chunks progressively
+  const words=text.split(' ');
+  let displayed='';
+  const chunkSize=3; // words per tick
+  for(let i=0;i<words.length;i+=chunkSize){
+    displayed+=words.slice(i,i+chunkSize).join(' ')+' ';
+    b.innerHTML=DOMPurify.sanitize(md(displayed.trim()));
+    scroll();
+    await new Promise(r=>setTimeout(r,30));
+  }
+  // Final render
+  b.innerHTML=DOMPurify.sanitize(md(text));
+
+  // Add suggestion chips
+  if(suggestions&&suggestions.length){
+    const sg=document.createElement('div');sg.className='suggestions';
+    suggestions.forEach(s=>{
+      const btn=document.createElement('button');btn.className='suggestion';
+      btn.textContent=s;
+      btn.onclick=()=>{document.getElementById('inp').value=s;sendMsg();};
+      sg.appendChild(btn);
+    });
+    c.appendChild(sg);
+  }
+  scroll();
+}
+
+// Render sprint charts from SSE chart event
+function renderSprintCharts(gid, chartData){
+  if(!chartData || typeof Chart === 'undefined') return;
+  const c=document.getElementById('botContent'+gid);
+  if(!c) return;
+
+  const chartDiv=document.createElement('div');
+  const uid=gid+'-'+Date.now();
+  const hasBurndown=chartData.burndown_labels&&chartData.burndown_labels.length>0;
+  chartDiv.innerHTML=`
+    ${hasBurndown?`<div class="chart-container" style="margin:12px 0"><canvas id="cb-${uid}"></canvas></div>`:''}
+    <div class="chart-grid">
+      <div class="chart-container"><canvas id="cc-${uid}"></canvas></div>
+      <div class="chart-container"><canvas id="ct-${uid}"></canvas></div>
+      <div class="chart-container"><canvas id="cs-${uid}"></canvas></div>
+      <div class="chart-container"><canvas id="cx-${uid}"></canvas></div>
+    </div>
+  `;
+  c.appendChild(chartDiv);
+
+  const f={family:'Inter, sans-serif'};
+  const g='rgba(0,0,0,0.06)';
+
+  new Chart(document.getElementById('cc-'+uid),{
+    type:'line',
+    data:{labels:chartData.labels,datasets:[{
+      label:'Completion %',data:chartData.completion,
+      borderColor:'#4f46e5',backgroundColor:'rgba(79,70,229,0.1)',
+      fill:true,tension:0.3,pointRadius:5,pointBackgroundColor:'#4f46e5'
+    }]},
+    options:{plugins:{title:{display:true,text:'Completion Rate %',font:{...f,size:13,weight:'600'}},legend:{display:false}},
+      scales:{y:{min:0,max:100,grid:{color:g},ticks:{font:f,callback:v=>v+'%'}},x:{grid:{display:false},ticks:{font:f}}},
+      responsive:true,maintainAspectRatio:true}
+  });
+
+  new Chart(document.getElementById('ct-'+uid),{
+    type:'bar',
+    data:{labels:chartData.labels,datasets:[
+      {label:'Committed',data:chartData.committed,backgroundColor:'rgba(79,70,229,0.2)',borderColor:'#4f46e5',borderWidth:1},
+      {label:'Completed',data:chartData.completed,backgroundColor:'rgba(16,185,129,0.2)',borderColor:'#10b981',borderWidth:1}
+    ]},
+    options:{plugins:{title:{display:true,text:'Committed vs Completed',font:{...f,size:13,weight:'600'}},legend:{position:'bottom',labels:{font:f,boxWidth:12}}},
+      scales:{y:{beginAtZero:true,grid:{color:g},ticks:{font:f}},x:{grid:{display:false},ticks:{font:f}}},
+      responsive:true,maintainAspectRatio:true}
+  });
+
+  new Chart(document.getElementById('cs-'+uid),{
+    type:'bar',
+    data:{labels:chartData.labels,datasets:[{
+      label:'Spillovers',data:chartData.spillovers,
+      backgroundColor:'rgba(239,68,68,0.2)',borderColor:'#ef4444',borderWidth:1
+    }]},
+    options:{plugins:{title:{display:true,text:'Spillovers per Sprint',font:{...f,size:13,weight:'600'}},legend:{display:false}},
+      scales:{y:{beginAtZero:true,grid:{color:g},ticks:{font:f,stepSize:1}},x:{grid:{display:false},ticks:{font:f}}},
+      responsive:true,maintainAspectRatio:true}
+  });
+
+  new Chart(document.getElementById('cx-'+uid),{
+    type:'bar',
+    data:{labels:chartData.labels,datasets:[{
+      label:'Tickets added mid-sprint',data:chartData.scope_creep,
+      backgroundColor:'rgba(245,158,11,0.2)',borderColor:'#f59e0b',borderWidth:1
+    }]},
+    options:{plugins:{title:{display:true,text:'Scope Creep',font:{...f,size:13,weight:'600'}},legend:{display:false}},
+      scales:{y:{beginAtZero:true,grid:{color:g},ticks:{font:f,stepSize:1}},x:{grid:{display:false},ticks:{font:f}}},
+      responsive:true,maintainAspectRatio:true}
+  });
+
+  // Burndown chart (full width, above the grid)
+  if(hasBurndown){
+    new Chart(document.getElementById('cb-'+uid),{
+      type:'line',
+      data:{labels:chartData.burndown_labels,datasets:[
+        {label:'Ideal',data:chartData.burndown_ideal,
+         borderColor:'rgba(79,70,229,0.4)',borderDash:[6,4],borderWidth:2,
+         pointRadius:0,fill:false,tension:0},
+        {label:'Actual',data:chartData.burndown_actual,
+         borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,0.08)',
+         borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#ef4444',
+         fill:true,tension:0.2}
+      ]},
+      options:{plugins:{title:{display:true,text:'Burndown — Latest Sprint (tickets remaining)',font:{...f,size:14,weight:'600'}},
+        legend:{position:'bottom',labels:{font:f,boxWidth:12}}},
+        scales:{y:{beginAtZero:true,grid:{color:g},ticks:{font:f},title:{display:true,text:'Tickets remaining',font:f}},
+          x:{grid:{display:false},ticks:{font:f,maxRotation:45}}},
+        responsive:true,maintainAspectRatio:true}
+    });
+  }
+  scroll();
+}
+
+// Render person activity chart
+function renderPersonChart(gid, data){
+  if(!data || typeof Chart === 'undefined') return;
+  const c=document.getElementById('botContent'+gid);
+  if(!c) return;
+
+  const uid=gid+'-p-'+Date.now();
+  const chartDiv=document.createElement('div');
+  chartDiv.className='chart-grid';
+  chartDiv.innerHTML=`
+    <div class="chart-container"><canvas id="pa-${uid}"></canvas></div>
+    <div class="chart-container"><canvas id="pr-${uid}"></canvas></div>
+  `;
+  c.appendChild(chartDiv);
+
+  const f={family:'Inter, sans-serif'};
+  const g='rgba(0,0,0,0.06)';
+
+  // PRs authored per month
+  new Chart(document.getElementById('pa-'+uid),{
+    type:'bar',
+    data:{labels:data.labels,datasets:[
+      {label:'PRs Authored',data:data.authored,backgroundColor:'rgba(79,70,229,0.25)',borderColor:'#4f46e5',borderWidth:1},
+      {label:'PRs Reviewed',data:data.reviewed,backgroundColor:'rgba(16,185,129,0.25)',borderColor:'#10b981',borderWidth:1}
+    ]},
+    options:{plugins:{title:{display:true,text:data.person+' — PR Activity by Month',font:{...f,size:13,weight:'600'}},
+      legend:{position:'bottom',labels:{font:f,boxWidth:12}}},
+      scales:{y:{beginAtZero:true,grid:{color:g},ticks:{font:f,stepSize:1}},x:{grid:{display:false},ticks:{font:f}}},
+      responsive:true,maintainAspectRatio:true}
+  });
+
+  // Collaboration ratio per month
+  const ratios=data.labels.map((_,i)=>data.authored[i]>0?Math.round(data.reviewed[i]/data.authored[i]*10)/10:0);
+  new Chart(document.getElementById('pr-'+uid),{
+    type:'line',
+    data:{labels:data.labels,datasets:[{
+      label:'Review/Author Ratio',data:ratios,
+      borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.1)',
+      fill:true,tension:0.3,pointRadius:5,pointBackgroundColor:'#f59e0b'
+    }]},
+    options:{plugins:{title:{display:true,text:'Collaboration Ratio (reviews given / PRs authored)',font:{...f,size:13,weight:'600'}},legend:{display:false}},
+      scales:{y:{beginAtZero:true,grid:{color:g},ticks:{font:f}},x:{grid:{display:false},ticks:{font:f}}},
+      responsive:true,maintainAspectRatio:true}
+  });
+  scroll();
+}
+
+// Send message
+async function sendMsg(){
+  const inp=document.getElementById('inp');
+  const text=inp.value.trim();
+  if(!text||loading)return;
+
+  loading=true;
+  document.getElementById('sendBtn').disabled=true;
+  addUser(text);
+  inp.value='';inp.style.height='auto';
+
+  // Remove old suggestions
+  document.querySelectorAll('.suggestions').forEach(s=>s.remove());
+
+  const gid=createBotGroup();
+  showThinking(gid);
+
+  const fd=new FormData();
+  fd.append('message',text);
+  if(pendingFile){fd.append('image',pendingFile);rmImg();}
+
+  try{
+    const r=await fetch('/api/chat',{method:'POST',body:fd});
+    const reader=r.body.getReader();
+    const dec=new TextDecoder();
+    let buf='';
+    while(true){
+      const{done,value}=await reader.read();
+      if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n');buf=lines.pop();
+      for(const ln of lines){
+        if(!ln.startsWith('data: '))continue;
+        const d=JSON.parse(ln.slice(6));
+        if(d.type==='tool_start')addTool(gid,d.name,d.icon,true);
+        else if(d.type==='tool_done')toolDone(gid,d.name);
+        else if(d.type==='chart')pendingChartData=d.data;
+        else if(d.type==='person_chart')pendingPersonChart=d.data;
+        else if(d.type==='answer'){
+          await addBotAnswer(gid,d.content,d.suggestions);
+          if(pendingChartData){renderSprintCharts(gid,pendingChartData);pendingChartData=null;}
+          if(pendingPersonChart){renderPersonChart(gid,pendingPersonChart);pendingPersonChart=null;}
+        }
+      }
+    }
+  }catch(e){
+    addBotAnswer(gid,'Connection error. Please try again.',[]);
+  }
+  loading=false;
+  document.getElementById('sendBtn').disabled=false;
+  inp.focus();
+  loadTrackRecord();  // accuracy may have changed (e.g. after grading predictions)
+}
+
+function send(t){document.getElementById('inp').value=t;sendMsg();}
+
+// Dynamic greeting based on time of day
+function updateGreeting(){
+  const h=new Date().getHours();
+  const g=h<12?'Good morning':h<17?'Good afternoon':'Good evening';
+  document.querySelectorAll('.dynamic-greeting').forEach(el=>{el.textContent=g;});
+}
+updateGreeting();
+
+function quickAction(msg){
+  document.getElementById('inp').value=msg;
+  sendMsg();
+}
+
+// Per-integration health dots in the header. Quiet signal for the EM —
+// turns red if an integration goes down so a dead token gets spotted
+// before a demo, not during it. Execs won't notice.
+async function loadIntegrationHealth(){
+  try{
+    const r = await fetch('/api/health/integrations');
+    const h = await r.json();
+    for(const k of Object.keys(h)){
+      const el = document.getElementById('int-' + k);
+      if(!el) continue;
+      el.classList.remove('ok','down','unknown');
+      el.classList.add(h[k] === 'ok' ? 'ok' : (h[k] === 'down' ? 'down' : 'unknown'));
+      const label = el.lastChild;
+      if(label && label.nodeType === Node.TEXT_NODE){
+        // No textual change when down — visual dot is the signal.
+      }
+    }
+  }catch(e){/* leave pills as 'unknown' on fetch error */}
+}
+loadIntegrationHealth();
+setInterval(loadIntegrationHealth, 60000);
+
+// Prediction accuracy badge — the "it learns" proof in the header
+async function loadTrackRecord(){
+  try{
+    const r=await fetch('/api/track-record');
+    const d=await r.json();
+    const badge=document.getElementById('accBadge');
+    if(d&&d.avg_accuracy!=null&&d.total>0){
+      document.getElementById('accPct').textContent=d.avg_accuracy+'%';
+      document.getElementById('accSub').textContent='accurate · '+d.total+' sprint'+(d.total>1?'s':'');
+      badge.classList.add('show');
+    }else{
+      badge.classList.remove('show');
+    }
+  }catch(e){/* leave badge hidden on error */}
+}
+loadTrackRecord();
+
+// Proactive daily digest — fire it live, lands in Google Chat
+async function sendDigest(){
+  if(loading)return;
+  loading=true;
+  document.getElementById('sendBtn').disabled=true;
+  addUser('☀️ Send today’s daily digest to Google Chat');
+  document.querySelectorAll('.suggestions').forEach(s=>s.remove());
+  const gid=createBotGroup();
+  showThinking(gid);
+  addTool(gid,'Generating daily digest','☀️',true);
+  try{
+    const fd=new FormData();
+    fd.append('project','');
+    fd.append('send','true');
+    const r=await fetch('/api/digest/run',{method:'POST',body:fd});
+    const d=await r.json();
+    toolDone(gid,'Generating daily digest');
+    const ok=(d.gchat_result||'').toLowerCase().includes('success');
+    const header=ok?'✅ **Daily digest sent to Google Chat.**':'⚠️ '+(d.gchat_result||'Could not send to Google Chat.');
+    const preview=d.message?('\n\n---\n'+d.message):'';
+    await addBotAnswer(gid,header+preview,[]);
+  }catch(e){
+    hideThinking(gid);
+    await addBotAnswer(gid,'⚠️ Failed to run the digest: '+e,[]);
+  }finally{
+    loading=false;
+    document.getElementById('sendBtn').disabled=false;
+  }
+}
+
+async function showTeamPicker(){
+  let members=[];
+  try{
+    const r=await fetch('/api/team');
+    members=await r.json();
+  }catch(e){/* fall through to empty check */}
+  if(!Array.isArray(members)||!members.length){
+    alert('Could not load the team roster. Check the EM config (configs/<you>.yaml).');
+    return;
+  }
+  const pick=prompt('Pick a team member for 1:1 prep:\n'+members.map((m,i)=>`${i+1}. ${m.name} (${m.team})`).join('\n')+'\n\nEnter number:');
+  if(pick){
+    const idx=parseInt(pick)-1;
+    if(idx>=0&&idx<members.length){
+      quickAction(`Prep me for a 1:1 with ${members[idx].name}`);
+    }
+  }
+}
+
+async function clearChat(){
+  await fetch('/api/clear',{method:'POST'});
+  botMsgCount=0;
+  document.getElementById('chat').innerHTML=`
+  <div id="welcomeScreen" class="welcome">
+    <div class="welcome-greeting">
+      <div class="welcome-logo">🚀</div>
+      <h2 class="dynamic-greeting">Good morning</h2>
+      <p>What would you like to know about your teams today? Pick a quick action above, or just ask.</p>
+    </div>
+  </div>`;
+  updateGreeting();
+}
+
+document.getElementById('inp').focus();
+</script>
+</body>
+</html>

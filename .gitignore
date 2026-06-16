@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+
+# Local runtime data — never commit
+data/*.db
+data/*.db-shm
+data/*.db-wal
+confluence_cache.json
+
+# Per-manager configs are private — only the template is tracked
+configs/*.yaml
+!configs/example.yaml

@@ -1,0 +1,36 @@
+# Sprint Scribe — EM Configuration Template
+# Copy this file and rename to your_name.yaml (e.g., senthil.yaml)
+
+name: "Your Name"
+email: "you@vendasta.com"
+
+# Jira projects your teams work on
+jira_projects:
+  - REP
+  - VS
+
+# Default project for creating new tickets
+create_project: VS
+
+# GitHub repos to search for PRs (within the org)
+github_repos:
+  - reputation
+  - meetings
+  - galaxy
+
+# Your teams — maps Jira display name to GitHub username.
+# display_name is the friendly name used in chat + digest (e.g. "Redmagic"),
+# the YAML key is the Jira/board project key (e.g. REP).
+teams:
+  REP:
+    display_name: "Your Team Name"
+    members:
+      "Developer Name": "github-username"
+  VS:
+    display_name: "Your Other Team Name"
+    members:
+      "Developer Name": "github-username"
+
+# Exclude these people from workload insights (managers)
+exclude_from_workload:
+  - "Your Name"
