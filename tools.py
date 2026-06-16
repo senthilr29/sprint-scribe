@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import json
 import time
 import functools
@@ -127,20 +128,29 @@ def _resilient(func):
 JIRA_URL = os.getenv("JIRA_URL")
 JIRA_EMAIL = os.getenv("JIRA_EMAIL")
 JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
-JIRA_CREATE_PROJECT = os.getenv("JIRA_CREATE_PROJECT", "VS")
+JIRA_CREATE_PROJECT = os.getenv("JIRA_CREATE_PROJECT", "")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_ORG = os.getenv("GITHUB_ORG", "vendasta")
 GITHUB_REPOS = [r.strip() for r in os.getenv("GITHUB_REPOS", "").split(",") if r.strip()]
-JIRA_PROJECTS = [p.strip() for p in os.getenv("JIRA_PROJECTS", "REP,VS").split(",") if p.strip()]
+JIRA_PROJECTS = [p.strip() for p in os.getenv("JIRA_PROJECTS", "").split(",") if p.strip()]
 GCHAT_WEBHOOK_URL = os.getenv("GCHAT_WEBHOOK_URL", "")
+
+
+def _gh_scope() -> str:
+    """GitHub search scope qualifier: narrow to the configured repos when set
+    (GITHUB_REPOS, from env or config), otherwise search the whole org."""
+    if GITHUB_REPOS:
+        return " ".join(f"repo:{GITHUB_ORG}/{r}" for r in GITHUB_REPOS)
+    return f"org:{GITHUB_ORG}"
 
 # Minimum approvals before a PR is "ready to merge". Vendasta convention is
 # two approvals; override per deployment via PR_MIN_APPROVALS env if your team
 # differs.
 _MIN_APPROVALS = int(os.getenv("PR_MIN_APPROVALS", "2"))
 
-# EMs — exclude from workload insights and reviewer suggestions
-_EXCLUDE_FROM_WORKLOAD = {"Senthil Kumar Ramalingam"}
+# EMs — exclude from workload insights and reviewer suggestions.
+# Populated from configs/<name>.yaml (exclude_from_workload); empty by default.
+_EXCLUDE_FROM_WORKLOAD = set()
 
 
 def _working_days_between(start_dt, end_dt) -> int:
@@ -173,7 +183,7 @@ _MEMBERS_BY_PROJECT = {
     "PROJ": {"Developer One", "Developer Two"},
 }
 
-# Project key -> friendly display name (e.g. "Redmagic", "Scheduling"). Overridden
+# Project key -> friendly display name (e.g. "Team Apollo", "Team Atlas"). Overridden
 # from config below. Used in morning briefing + anywhere the team is named.
 _PROJECT_DISPLAY_NAMES = {}
 
@@ -198,6 +208,13 @@ try:
                 _PROJECT_DISPLAY_NAMES[_team_key] = _data["display_name"]
         if _cfg.get("exclude_from_workload"):
             _EXCLUDE_FROM_WORKLOAD = set(_cfg["exclude_from_workload"])
+        # Projects / repos / default board from config (env still wins if set).
+        if _cfg.get("jira_projects") and not os.getenv("JIRA_PROJECTS"):
+            JIRA_PROJECTS = [str(p).strip() for p in _cfg["jira_projects"] if str(p).strip()]
+        if _cfg.get("github_repos") and not os.getenv("GITHUB_REPOS"):
+            GITHUB_REPOS = [str(r).strip() for r in _cfg["github_repos"] if str(r).strip()]
+        if _cfg.get("create_project") and not os.getenv("JIRA_CREATE_PROJECT"):
+            JIRA_CREATE_PROJECT = str(_cfg["create_project"]).strip()
 except Exception:
     pass  # config unavailable — keep hardcoded fallbacks
 
@@ -227,7 +244,7 @@ def get_jira_issue(issue_key: str) -> str:
     """Get full details, status, assignee, and recent comments for a Jira ticket.
 
     Args:
-        issue_key: Jira issue key e.g. REP-1234
+        issue_key: Jira issue key e.g. PROJ-1234
     """
     try:
         jira = _get_jira()
@@ -274,7 +291,7 @@ def search_sprint(jql: str) -> str:
     """Search Jira issues using JQL. Use for sprint health, assignee workload, blocked items.
 
     Args:
-        jql: Valid JQL string e.g. 'project in (REP, VS) AND sprint in openSprints()'
+        jql: Valid JQL string e.g. 'project in (PROJ1, PROJ2) AND sprint in openSprints()'
     """
     try:
         jira = _get_jira()
@@ -311,7 +328,7 @@ def create_jira_ticket(summary: str, description: str, issue_type: str = "Bug", 
         summary: One-line ticket title
         description: Detailed description — will be formatted into the appropriate template
         issue_type: Bug, Story, Task, or Improvement. Default is Bug.
-        project: Jira project key e.g. VS or REP. Uses default if not specified.
+        project: Jira project key e.g. PROJ1. Uses default if not specified.
     """
     try:
         jira = _get_jira()
@@ -371,7 +388,7 @@ def update_jira_status(issue_key: str, new_status: str) -> str:
     """Transition a Jira ticket to a new status.
 
     Args:
-        issue_key: Jira issue key e.g. REP-1234
+        issue_key: Jira issue key e.g. PROJ-1234
         new_status: Target status name e.g. 'In Review', 'In Progress', 'Done', 'To Do'
     """
     try:
@@ -399,7 +416,7 @@ def add_jira_comment(issue_key: str, comment: str) -> str:
     """Add a comment to a Jira ticket.
 
     Args:
-        issue_key: Jira issue key e.g. REP-1234
+        issue_key: Jira issue key e.g. PROJ-1234
         comment: Comment text to add
     """
     try:
@@ -415,7 +432,7 @@ def attach_to_jira(issue_key: str, filename: str = "", image_base64: str = "") -
     in the current conversation, it will be attached automatically.
 
     Args:
-        issue_key: Jira issue key e.g. VS-567
+        issue_key: Jira issue key e.g. PROJ-567
         filename: Filename for the attachment. Optional — uses uploaded filename if available.
         image_base64: Base64-encoded image. Optional — uses uploaded image if available.
     """
@@ -471,7 +488,7 @@ def _resolve_projects(project: str = "") -> list:
 
 def _team_display_label(proj_list: list) -> str:
     """Friendly team name(s) for a list of project keys — uses display_name from
-    the active EM config (e.g. 'Redmagic' for REP). Joins multiple with '+'."""
+    the active EM config (e.g. 'Team Apollo' for PROJ). Joins multiple with '+'."""
     if not proj_list:
         return ""
     names = [_PROJECT_DISPLAY_NAMES.get(p, p) for p in proj_list]
@@ -586,7 +603,7 @@ def get_sprint_history(num_sprints: int = 5, project: str = "") -> str:
 
     Args:
         num_sprints: Number of past sprints to analyze. Default 5.
-        project: Jira project key e.g. 'REP' or 'VS'. Leave empty for all configured projects.
+        project: Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all configured projects.
     """
     try:
         jira = _get_jira()
@@ -706,7 +723,7 @@ def predict_spillovers(project: str = "") -> str:
     If no active sprint, analyzes the most recently closed sprint.
 
     Args:
-        project: Jira project key e.g. 'REP' or 'VS'. Leave empty for all configured projects.
+        project: Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all configured projects.
     """
     try:
         jira = _get_jira()
@@ -931,7 +948,7 @@ def score_predictions(project: str = "") -> str:
     accuracy. Run this after a sprint closes to update the track record.
 
     Args:
-        project: Jira project key e.g. 'REP' or 'VS'. Leave empty for all configured projects.
+        project: Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all configured projects.
     """
     try:
         jira = _get_jira()
@@ -1063,7 +1080,7 @@ def get_github_prs(ticket_key: str) -> str:
     Uses Jira's dev info API (primary) and GitHub search (fallback).
 
     Args:
-        ticket_key: Jira issue key to search for e.g. REP-1234
+        ticket_key: Jira issue key to search for e.g. PROJ-1234
     """
     try:
         import requests
@@ -1179,7 +1196,7 @@ def get_github_prs(ticket_key: str) -> str:
         # Fallback: GitHub search API — org-wide
         try:
             gh = _get_github()
-            query = f"{ticket_key} org:{GITHUB_ORG} is:pr"
+            query = f"{ticket_key} {_gh_scope()} is:pr"
             search_results = gh.search_issues(query, sort="updated", order="desc")
             for i, pr_issue in enumerate(search_results):
                 if i >= 5:
@@ -1221,7 +1238,7 @@ def get_team_availability(project: str = "") -> str:
     unassigned, and anyone not in the team.
 
     Args:
-        project: Jira project key e.g. 'REP' or 'VS'. Leave empty for all configured projects.
+        project: Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all configured projects.
     """
     try:
         jira = _get_jira()
@@ -1293,7 +1310,7 @@ def get_team_availability(project: str = "") -> str:
             gh_username = TEAM_MEMBERS.get(person_name, "")
             if gh_username:
                 try:
-                    query = f"org:{GITHUB_ORG} is:pr is:open review-requested:{gh_username}"
+                    query = f"{_gh_scope()} is:pr is:open review-requested:{gh_username}"
                     pending_reviews = sum(1 for _ in gh.search_issues(query))
                     stats["pending_reviews"] = pending_reviews
                 except Exception:
@@ -1304,7 +1321,7 @@ def get_team_availability(project: str = "") -> str:
         # Sort by effort remaining (weighted by type + priority), then by pending reviews
         lines = [f"=== DEVELOPER AVAILABILITY ({sprint_label}) ==="]
         lines.append(f"Projects: {', '.join(proj_list)} | Only showing developers (no managers)")
-        lines.append(f"Effort = weighted by issue type (Story=3, Bug=2, Task=1) x priority (Critical=3, Major=2, Minor=1)\n")
+        lines.append(f"Effort = issue type (Story=3, Bug=2, Task=1) x priority (Blocker=2, Critical=1.5, Major=1.2, Minor=1)\n")
         sorted_members = sorted(
             workload.items(),
             key=lambda x: (x[1]["effort_remaining"], x[1].get("pending_reviews", 99))
@@ -1376,7 +1393,7 @@ def get_morning_briefing(project: str = "") -> str:
     blocked items, and workload imbalance across the team.
 
     Args:
-        project: Jira project key e.g. 'REP' or 'VS'. Leave empty for all configured projects.
+        project: Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all configured projects.
     """
     try:
         jira = _get_jira()
@@ -1522,7 +1539,7 @@ def get_morning_briefing(project: str = "") -> str:
             def _check_has_pr(ticket_info):
                 key, assignee, summary = ticket_info[:3]
                 try:
-                    query = f"{key} org:{GITHUB_ORG} is:pr"
+                    query = f"{key} {_gh_scope()} is:pr"
                     has_pr = any(True for _ in gh.search_issues(query))
                     return key, assignee, summary, has_pr
                 except Exception:
@@ -1543,7 +1560,7 @@ def get_morning_briefing(project: str = "") -> str:
         try:
             gh = _get_github()
             age_cutoff = (now - timedelta(days=2)).strftime("%Y-%m-%d")
-            query = f"org:{GITHUB_ORG} is:pr is:open created:<={age_cutoff} review:none"
+            query = f"{_gh_scope()} is:pr is:open created:<={age_cutoff} review:none"
             for i, pr_issue in enumerate(gh.search_issues(query, sort="created", order="asc")):
                 if i >= 10:
                     break
@@ -1824,20 +1841,18 @@ def get_morning_briefing(project: str = "") -> str:
             names = [p for p, s in free_people]
             lines.append(f"  💡 {', '.join(names)} have no remaining work — available to help with carry-overs or reviews")
 
-        # Escalated bugs (support-raised bugs)
-        # Open escalated bugs only. Bugs only (no Tasks). Exclude every terminal
-        # status including Aborted — these aren't 'needing attention'.
-        _ESCALATED_JQL = {
-            "REP": 'project = ReputationManagement AND issuetype = Bug AND labels = jira_escalated AND status NOT IN ("CLOSED-Won\'t Fix", Closed, Done, Duplicate, "GA CLOSED", "Will Not Do", "Won\'t Do", "Won\'t Fix", Aborted, Cancelled) ORDER BY created DESC',
-            "VS": 'project IN (VS, AI, CHR) AND issuetype = Bug AND labels = jira_escalated AND status NOT IN ("CLOSED-Won\'t Fix", Closed, Done, Duplicate, "GA CLOSED", "Will Not Do", "Won\'t Do", "Won\'t Fix", Aborted, Cancelled) ORDER BY created DESC',
-        }
+        # Escalated bugs (support-raised bugs). Open escalated bugs only, Bugs only
+        # (no Tasks), excluding every terminal status. Assumes the team flags these
+        # with the `jira_escalated` label (Vendasta convention) — teams that don't
+        # use the label simply get zero results here.
+        _ESC_STATUS_EXCL = ('("CLOSED-Won\'t Fix", Closed, Done, Duplicate, "GA CLOSED", '
+                            '"Will Not Do", "Won\'t Do", "Won\'t Fix", Aborted, Cancelled)')
         escalated_lines = []
         total_escalated = 0
         missing_start = 0
         for proj in proj_list:
-            jql = _ESCALATED_JQL.get(proj)
-            if not jql:
-                continue
+            jql = (f'project = {proj} AND issuetype = Bug AND labels = jira_escalated '
+                   f'AND status NOT IN {_ESC_STATUS_EXCL} ORDER BY created DESC')
             try:
                 esc_result = jira.jql(jql, limit=50)
                 esc_issues = esc_result.get("issues", []) if isinstance(esc_result, dict) else esc_result
@@ -1884,7 +1899,7 @@ def get_person_summary(person_name: str, project: str = "") -> str:
 
     Args:
         person_name: Team member's display name as it appears in Jira (e.g. 'Alex Johnson')
-        project: Jira project key e.g. 'REP' or 'VS'. Leave empty for all configured projects.
+        project: Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all configured projects.
     """
     try:
         jira = _get_jira()
@@ -2045,7 +2060,7 @@ CONFLUENCE_SPACE = os.getenv("CONFLUENCE_SPACE", "RD")
 # Parent page of the "Request for Comment (RFC)" index — all RFCs live as
 # descendants (the main RFC + sub-pages for Technical Details / Engineering /
 # Product & Design / Sprint Goals). Override via CONFLUENCE_RFC_PARENT_ID.
-CONFLUENCE_RFC_PARENT_ID = os.getenv("CONFLUENCE_RFC_PARENT_ID", "199164336")
+CONFLUENCE_RFC_PARENT_ID = os.getenv("CONFLUENCE_RFC_PARENT_ID", "")
 
 
 def _get_recent_rfcs_for_person(person_name: str, days: int = 90) -> list:
@@ -2055,19 +2070,22 @@ def _get_recent_rfcs_for_person(person_name: str, days: int = 90) -> list:
       1. Multi-page RFCs filed under the RD 'Request for Comment (RFC)' parent
          (Technical Details / Engineering / Product & Design / Sprint Goals
          sub-pages — often unprefixed in title). Caught by ancestor scope.
-      2. Single-page RFCs in product spaces (RM, RED, VS, ...) following the
+      2. Single-page RFCs in any product space following the
          'RFC: …' title convention. Caught by title pattern, org-wide.
 
     We union both and dedupe by URL so the same page never appears twice."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
 
-    ancestor_cql = (f'ancestor = "{CONFLUENCE_RFC_PARENT_ID}" AND type = "page" '
-                    f'AND lastmodified >= "{cutoff}"')
-    title_cql    = (f'title ~ "RFC" AND type = "page" '
-                    f'AND lastmodified >= "{cutoff}"')
+    title_cql = (f'title ~ "RFC" AND type = "page" '
+                 f'AND lastmodified >= "{cutoff}"')
+    cqls = [title_cql]
+    # Ancestor scope only applies if an RFC index parent page is configured.
+    if CONFLUENCE_RFC_PARENT_ID:
+        cqls.insert(0, f'ancestor = "{CONFLUENCE_RFC_PARENT_ID}" AND type = "page" '
+                       f'AND lastmodified >= "{cutoff}"')
 
     seen, merged = set(), []
-    for cql in (ancestor_cql, title_cql):
+    for cql in cqls:
         for r in _search_confluence_by_author(cql, person_name):
             key = r.get("url") or (r.get("title"), r.get("date"))
             if key in seen:
@@ -2134,12 +2152,12 @@ def get_person_github_activity(person_name: str) -> str:
         if github_ok:
             for label, start, end in months:
                 try:
-                    aq = f"author:{gh_username} org:{GITHUB_ORG} is:pr created:{start}..{end}"
+                    aq = f"author:{gh_username} {_gh_scope()} is:pr created:{start}..{end}"
                     authored_by_month[label] = gh.search_issues(aq).totalCount
                 except Exception:
                     authored_by_month[label] = 0
                 try:
-                    rq = f"reviewed-by:{gh_username} org:{GITHUB_ORG} is:pr created:{start}..{end}"
+                    rq = f"reviewed-by:{gh_username} {_gh_scope()} is:pr created:{start}..{end}"
                     reviewed_by_month[label] = gh.search_issues(rq).totalCount
                 except Exception:
                     reviewed_by_month[label] = 0
@@ -2150,8 +2168,9 @@ def get_person_github_activity(person_name: str) -> str:
         # --- Jira: Work type breakdown (last 3 months) ---
         three_months_ago = (now - timedelta(days=90)).strftime("%Y-%m-%d")
         projects = ", ".join(JIRA_PROJECTS)
+        proj_clause = f"project in ({projects}) AND " if projects else ""
         jql = (
-            f"assignee = '{person_name}' AND updated >= '{three_months_ago}' "
+            f"assignee = '{person_name}' AND {proj_clause}updated >= '{three_months_ago}' "
             f"ORDER BY updated DESC"
         )
         jira_result = jira.jql(jql, limit=50)
@@ -2327,7 +2346,7 @@ def get_sprint_retro_data(sprint_name: str = "", project: str = "") -> str:
 
     Args:
         sprint_name: Name of the sprint to analyze. Leave empty for the most recently closed sprint.
-        project: Jira project key e.g. 'REP' or 'VS'. Leave empty for all configured projects.
+        project: Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all configured projects.
     """
     try:
         jira = _get_jira()
@@ -2541,7 +2560,7 @@ def get_sprint_charts(num_sprints: int = 4, project: str = "") -> str:
 
     Args:
         num_sprints: Number of sprints to compare. Default 4.
-        project: Jira project key e.g. 'REP' or 'VS'. Leave empty for all.
+        project: Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all.
     """
     try:
         jira = _get_jira()
@@ -2563,7 +2582,7 @@ def get_sprint_charts(num_sprints: int = 4, project: str = "") -> str:
             name = sprint.get("name", f"Sprint {sid}")
             # Shorten name for chart labels
             short_name = name.split(" - ")[-1] if " - " in name else name
-            short_name = short_name.replace("REP-", "").replace("REP ", "")[:20]
+            short_name = re.sub(r'^[A-Za-z][A-Za-z0-9]*[-\s]', '', short_name)[:20]
 
             result = jira.jql(f"project in ({projects}) AND sprint = {sid}", limit=100)
             issues = result.get("issues", []) if isinstance(result, dict) else result
@@ -2986,7 +3005,7 @@ def get_pending_prs(project: str = "") -> str:
          inline code comments + the latest commit timestamp.
 
     Args:
-        project: Jira project key e.g. 'REP' or 'VS'. Leave empty for all.
+        project: Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all.
     """
     try:
         import requests as _req

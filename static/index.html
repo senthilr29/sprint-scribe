@@ -577,12 +577,12 @@ if(typeof DOMPurify==='undefined'){window.DOMPurify={sanitize:function(s){return
     <div class="hint">Click to toggle projects you want to monitor</div>
 
     <label>Default Project for New Tickets</label>
-    <input type="text" id="sCreateProject" placeholder="VS">
+    <input type="text" id="sCreateProject" placeholder="PROJ1">
     <div class="hint">Which project to create tickets in by default</div>
 
     <label>GitHub Repos (optional)</label>
-    <input type="text" id="sGithubRepos" placeholder="reputation, meetings, galaxy">
-    <div class="hint">Comma-separated repo names for PR lookup. Leave blank to skip.</div>
+    <input type="text" id="sGithubRepos" placeholder="repo-one, repo-two">
+    <div class="hint">Comma-separated repo names to scan. Leave blank to scan the whole org.</div>
 
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeSettings()">Cancel</button>

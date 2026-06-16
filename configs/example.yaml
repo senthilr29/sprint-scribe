@@ -1,36 +1,37 @@
 # Sprint Scribe — EM Configuration Template
-# Copy this file and rename to your_name.yaml (e.g., senthil.yaml)
+# Copy this file and rename it to your own name, e.g. configs/alex.yaml
 
 name: "Your Name"
 email: "you@vendasta.com"
 
-# Jira projects your teams work on
+# Jira project keys your teams work on
 jira_projects:
-  - REP
-  - VS
+  - PROJ1
+  - PROJ2
 
 # Default project for creating new tickets
-create_project: VS
+create_project: PROJ1
 
-# GitHub repos to search for PRs (within the org)
+# GitHub repos to scan for PRs (within your org). Leave empty to scan the whole org.
 github_repos:
-  - reputation
-  - meetings
-  - galaxy
+  - repo-one
+  - repo-two
 
-# Your teams — maps Jira display name to GitHub username.
-# display_name is the friendly name used in chat + digest (e.g. "Redmagic"),
-# the YAML key is the Jira/board project key (e.g. REP).
+# Your teams — maps each Jira display name to a GitHub username.
+# display_name is the friendly name used in chat + digest (e.g. "Team Apollo"),
+# the YAML key is the Jira/board project key (e.g. PROJ1).
 teams:
-  REP:
-    display_name: "Your Team Name"
+  PROJ1:
+    display_name: "Team Apollo"
     members:
-      "Developer Name": "github-username"
-  VS:
-    display_name: "Your Other Team Name"
+      "Developer One": "github-id-1"
+      "Developer Two": "github-id-2"
+  PROJ2:
+    display_name: "Team Atlas"
     members:
-      "Developer Name": "github-username"
+      "Developer Three": "github-id-3"
+      "Developer Four": "github-id-4"
 
-# Exclude these people from workload insights (managers)
+# Exclude these people (e.g. managers) from workload insights and reviewer suggestions
 exclude_from_workload:
   - "Your Name"

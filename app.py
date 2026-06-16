@@ -22,7 +22,7 @@ from prompts import build_system_prompt
 from user_config import get_current_user, list_users, get_team_roster_text
 from db import get_memory_context, save_note, save_oneone, save_prediction, get_db, init_db, get_prediction_accuracy
 
-MODELS = ["gpt-4o", "gpt-5.4-mini", "gpt-4o-mini"]
+MODELS = ["gpt-4o", "gpt-4o-mini"]
 
 # --- OpenAI tool definitions (JSON schema) ---
 
@@ -35,7 +35,7 @@ OPENAI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "issue_key": {"type": "string", "description": "Jira issue key e.g. REP-1234"}
+                    "issue_key": {"type": "string", "description": "Jira issue key e.g. PROJ-1234"}
                 },
                 "required": ["issue_key"],
             },
@@ -52,7 +52,7 @@ OPENAI_TOOLS = [
                     "summary": {"type": "string", "description": "One-line ticket title"},
                     "description": {"type": "string", "description": "Detailed description"},
                     "issue_type": {"type": "string", "description": "Bug, Story, Task, or Improvement. Default is Bug.", "default": "Bug"},
-                    "project": {"type": "string", "description": "Jira project key e.g. VS or REP. Uses default if not specified.", "default": ""},
+                    "project": {"type": "string", "description": "Jira project key e.g. PROJ1. Uses default if not specified.", "default": ""},
                 },
                 "required": ["summary", "description"],
             },
@@ -66,7 +66,7 @@ OPENAI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "jql": {"type": "string", "description": "Valid JQL string e.g. 'project in (REP, VS) AND sprint in openSprints()'"}
+                    "jql": {"type": "string", "description": "Valid JQL string e.g. 'project in (PROJ1, PROJ2) AND sprint in openSprints()'"}
                 },
                 "required": ["jql"],
             },
@@ -80,7 +80,7 @@ OPENAI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "ticket_key": {"type": "string", "description": "Jira issue key to search for e.g. REP-1234"}
+                    "ticket_key": {"type": "string", "description": "Jira issue key to search for e.g. PROJ-1234"}
                 },
                 "required": ["ticket_key"],
             },
@@ -94,7 +94,7 @@ OPENAI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "issue_key": {"type": "string", "description": "Jira issue key e.g. REP-1234"},
+                    "issue_key": {"type": "string", "description": "Jira issue key e.g. PROJ-1234"},
                     "new_status": {"type": "string", "description": "Target status name e.g. 'In Review', 'In Progress', 'Done', 'To Do'"},
                 },
                 "required": ["issue_key", "new_status"],
@@ -109,7 +109,7 @@ OPENAI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "issue_key": {"type": "string", "description": "Jira issue key e.g. REP-1234"},
+                    "issue_key": {"type": "string", "description": "Jira issue key e.g. PROJ-1234"},
                     "comment": {"type": "string", "description": "Comment text to add"},
                 },
                 "required": ["issue_key", "comment"],
@@ -124,7 +124,7 @@ OPENAI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "issue_key": {"type": "string", "description": "Jira issue key e.g. VS-567"},
+                    "issue_key": {"type": "string", "description": "Jira issue key e.g. PROJ-567"},
                     "filename": {"type": "string", "description": "Filename for the attachment e.g. screenshot.png"},
                     "image_base64": {"type": "string", "description": "Base64-encoded image content"},
                 },
@@ -141,7 +141,7 @@ OPENAI_TOOLS = [
                 "type": "object",
                 "properties": {
                     "num_sprints": {"type": "integer", "description": "Number of past sprints to analyze. Default 5.", "default": 5},
-                    "project": {"type": "string", "description": "Jira project key e.g. 'REP' or 'VS'. Leave empty for all projects.", "default": ""}
+                    "project": {"type": "string", "description": "Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all projects.", "default": ""}
                 },
                 "required": [],
             },
@@ -155,7 +155,7 @@ OPENAI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "project": {"type": "string", "description": "Jira project key e.g. 'REP' or 'VS'. Leave empty for all projects.", "default": ""}
+                    "project": {"type": "string", "description": "Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all projects.", "default": ""}
                 },
                 "required": [],
             },
@@ -169,7 +169,7 @@ OPENAI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "project": {"type": "string", "description": "Jira project key e.g. 'REP' or 'VS'. Leave empty for all.", "default": ""}
+                    "project": {"type": "string", "description": "Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all.", "default": ""}
                 },
                 "required": [],
             },
@@ -191,7 +191,7 @@ OPENAI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "project": {"type": "string", "description": "Jira project key e.g. 'REP' or 'VS'. Leave empty for all projects.", "default": ""}
+                    "project": {"type": "string", "description": "Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all projects.", "default": ""}
                 },
                 "required": [],
             },
@@ -206,7 +206,7 @@ OPENAI_TOOLS = [
                 "type": "object",
                 "properties": {
                     "person_name": {"type": "string", "description": "Team member's display name as it appears in Jira (e.g. 'Alex Johnson')"},
-                    "project": {"type": "string", "description": "Jira project key e.g. 'REP' or 'VS'. Leave empty for all projects.", "default": ""}
+                    "project": {"type": "string", "description": "Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all projects.", "default": ""}
                 },
                 "required": ["person_name"],
             },
@@ -216,7 +216,7 @@ OPENAI_TOOLS = [
         "type": "function",
         "function": {
             "name": "get_person_github_activity",
-            "description": "Get a team member's recent GitHub activity: PRs authored, reviews given, and collaboration ratio. Requires TEAM_MEMBERS mapping in .env.",
+            "description": "Get a team member's recent GitHub activity: PRs authored, reviews given, and collaboration ratio. Requires the person to be mapped to a GitHub username in your team config (configs/<name>.yaml).",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -235,7 +235,7 @@ OPENAI_TOOLS = [
                 "type": "object",
                 "properties": {
                     "sprint_name": {"type": "string", "description": "Name of the sprint to analyze. Leave empty for the most recently closed sprint.", "default": ""},
-                    "project": {"type": "string", "description": "Jira project key e.g. 'REP' or 'VS'. Leave empty for all projects.", "default": ""}
+                    "project": {"type": "string", "description": "Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all projects.", "default": ""}
                 },
                 "required": [],
             },
@@ -249,7 +249,7 @@ OPENAI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "project": {"type": "string", "description": "Jira project key e.g. 'REP' or 'VS'. Leave empty for all projects.", "default": ""}
+                    "project": {"type": "string", "description": "Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all projects.", "default": ""}
                 },
                 "required": [],
             },
@@ -264,7 +264,7 @@ OPENAI_TOOLS = [
                 "type": "object",
                 "properties": {
                     "num_sprints": {"type": "integer", "description": "Number of sprints to compare. Default 4.", "default": 4},
-                    "project": {"type": "string", "description": "Jira project key e.g. 'REP' or 'VS'. Leave empty for all.", "default": ""}
+                    "project": {"type": "string", "description": "Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all.", "default": ""}
                 },
                 "required": [],
             },
@@ -278,7 +278,7 @@ OPENAI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "project": {"type": "string", "description": "Jira project key e.g. 'REP' or 'VS'. Leave empty for all.", "default": ""}
+                    "project": {"type": "string", "description": "Jira project key e.g. 'PROJ1' or 'PROJ2'. Leave empty for all.", "default": ""}
                 },
                 "required": [],
             },
@@ -411,14 +411,16 @@ def get_client():
     return _client
 
 
-# In-memory session store (single user for hackathon)
+# In-memory single-session store. Run as your own local instance (one manager per
+# process); see the OAuth/session seam in user_config.get_current_user() to host
+# a shared multi-user deployment.
 session = {"history": []}
 
 # Dynamic settings — can be changed from the UI
 settings = {
-    "jira_projects": os.getenv("JIRA_PROJECTS", "REP,VS"),
+    "jira_projects": os.getenv("JIRA_PROJECTS", ""),
     "github_repos": os.getenv("GITHUB_REPOS", ""),
-    "create_project": os.getenv("JIRA_CREATE_PROJECT", "VS"),
+    "create_project": os.getenv("JIRA_CREATE_PROJECT", ""),
 }
 
 
@@ -505,7 +507,7 @@ async def get_users():
 @app.get("/api/team")
 async def get_team(user: str = ""):
     """Team roster (name + team) from the active EM config — single source for the
-    1:1 picker so it never drifts from senthil.yaml."""
+    1:1 picker so it never drifts from configs/<your>.yaml."""
     user_config = get_current_user(user or None)
     members = []
     if user_config:

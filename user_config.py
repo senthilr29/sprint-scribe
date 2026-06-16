@@ -19,16 +19,10 @@ _configs_cache = {}
 
 def _load_yaml(path: str) -> dict:
     """Load a YAML file. Falls back to basic parsing if pyyaml not installed."""
-    if yaml:
-        with open(path) as f:
-            return yaml.safe_load(f)
-    else:
-        # Minimal fallback — won't handle nested structures well
-        import json
-        with open(path) as f:
-            # Try JSON-compatible subset
-            content = f.read()
-            raise ImportError("pyyaml is required. Install with: pip install pyyaml")
+    if not yaml:
+        raise ImportError("pyyaml is required. Install with: pip install pyyaml")
+    with open(path) as f:
+        return yaml.safe_load(f)
 
 
 def load_all_users() -> dict[str, dict]:
@@ -98,7 +92,7 @@ def list_users() -> list[dict]:
 
 def get_team_roster_text(config: dict) -> str:
     """Generate the team roster section for the system prompt from a user's config.
-    Uses the team's display_name when set (e.g. 'Redmagic') and keeps the project
+    Uses the team's display_name when set (e.g. 'Team Apollo') and keeps the project
     key visible so the AI can map between the two."""
     lines = []
     for team_key, team_data in config.get("teams", {}).items():

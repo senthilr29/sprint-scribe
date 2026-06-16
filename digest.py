@@ -8,8 +8,8 @@ members who have moved off the team.
 
 Run on a schedule (cron / Cloud Scheduler / GitHub Action):
     python digest.py            # all configured projects
-    python digest.py REP        # a single project
-    python digest.py "REP,VS"   # a specific subset
+    python digest.py PROJ1          # a single project
+    python digest.py "PROJ1,PROJ2"  # a specific subset
 
 Or trigger it on demand for a demo via:  POST /api/digest/run   (see app.py)
 
@@ -31,14 +31,14 @@ import tools
 import db
 
 # Same fallback chain as the chat app, kept local to avoid importing app.py.
-_MODELS = ["gpt-4o", "gpt-5.4-mini", "gpt-4o-mini"]
+_MODELS = ["gpt-4o", "gpt-4o-mini"]
 
 _TEAM_DIGEST_PROMPT = """You are Sprint Scribe writing the BODY of one team's section of the morning digest for Google Chat.
 
 The team header line (*🟪 <Team> — <Sprint>*) is added automatically by the system — do NOT include it in your output. Start your output with the Status line.
 
 Inputs:
-- The team's friendly display name (use this in any prose, not the raw project key like REP/VS).
+- The team's friendly display name (use this in any prose, not the raw project key).
 - The CURRENT roster — only mention people in this list. If a name appears in the data but is NOT in the current roster, they have moved off the team; SKIP them and do not recommend assigning work to them.
 - Raw morning briefing + spillover risk data. The briefing's "Status: …" line gives done/total + days left, and the "🟢 IN PROGRESS" section lists current in-flight tickets.
 
@@ -140,7 +140,7 @@ def _projects_to_cover(project_arg: str) -> list:
     """Single project string, comma-separated list, or empty -> all configured projects."""
     if project_arg:
         return [p.strip() for p in project_arg.split(",") if p.strip()]
-    return list(tools.JIRA_PROJECTS) or ["REP", "VS"]
+    return list(tools.JIRA_PROJECTS)
 
 
 def build_digest(project: str = "") -> str:

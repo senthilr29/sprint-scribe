@@ -87,15 +87,15 @@ name: "Your Name"
 email: "you@vendasta.com"
 
 jira_projects:
-  - REP
-create_project: REP
+  - PROJ1
+create_project: PROJ1
 
-github_repos:
-  - reputation
+github_repos:        # repos to scan for PRs; omit to scan the whole org
+  - repo-one
 
 teams:
-  REP:
-    display_name: "Your Team Name"
+  PROJ1:
+    display_name: "Team Apollo"
     members:
       "Developer One": "github-id-1"
       "Developer Two": "github-id-2"
@@ -104,7 +104,9 @@ exclude_from_workload:
   - "Your Name"
 ```
 
+> `jira_projects`, `create_project`, and `github_repos` can live here **or** in `.env` — if set in both, `.env` wins.
 > Config files (`configs/*.yaml`) are gitignored except the template — your roster stays private to your machine.
+> Keep **one** config file per install; if multiple exist the app can't pick a default and falls back to placeholders.
 
 ### 4. Run
 
@@ -134,4 +136,8 @@ config; swap it for OAuth/session later to host one shared instance for everyone
 
 - **Never commit** `.env` or your `configs/<name>.yaml` — both are gitignored by default.
 - Requires Python 3.10+ (uses `dict[str, dict]` / `str | None` type hints).
+- **Single-user by design:** run it as your own local instance (one manager per process). The
+  `get_current_user()` seam in `user_config.py` is where you'd add OAuth/sessions to host a
+  shared multi-user deployment.
+- The Confluence "wider contributions" view is optional and degrades silently if unconfigured.
 - Built at Vendasta. Questions → sramalingam@vendasta.com

@@ -4,5 +4,6 @@ python-multipart
 openai
 atlassian-python-api
 PyGithub
+requests
 python-dotenv
 pyyaml
