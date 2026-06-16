@@ -118,4 +118,4 @@ config; swap it for OAuth/session later to host one shared instance for everyone
 
 - **Never commit** `.env` or your `configs/<name>.yaml` — both are gitignored by default.
 - Requires Python 3.10+ (uses `dict[str, dict]` / `str | None` type hints).
-- Built at Vendasta. Questions → Senthil.
+- Built at Vendasta. Questions → sramalingam@vendasta.com
