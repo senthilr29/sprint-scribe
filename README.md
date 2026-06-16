@@ -33,26 +33,42 @@ pip install -r requirements.txt
 
 ### 2. Add your credentials
 
-Copy the example env file and fill in your own tokens:
+Copy the example env file and fill in your own values:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
+You need **three tokens** (all free to generate) plus an optional webhook. Here's how to get each:
 
-| Variable | What it is |
-|----------|-----------|
-| `OPENAI_API_KEY` | Your OpenAI API key |
-| `JIRA_URL` | `https://vendasta.jira.com` |
-| `JIRA_EMAIL` | Your Vendasta email |
-| `JIRA_API_TOKEN` | id.atlassian.com → Security → API tokens |
-| `GITHUB_TOKEN` | GitHub → Settings → Developer settings → Personal access tokens (repo scope) |
-| `GITHUB_ORG` | `vendasta` |
-| `GITHUB_REPOS` | Comma-separated repos your teams work in, e.g. `reputation,meetings` |
-| `JIRA_PROJECTS` | Your Jira project keys, e.g. `REP,VS` |
-| `JIRA_CREATE_PROJECT` | Default project for new tickets |
-| `GCHAT_WEBHOOK_URL` | (optional) Google Chat space webhook for digests |
+#### a. OpenAI API key — `OPENAI_API_KEY` *(required)*
+1. Go to <https://platform.openai.com/api-keys>
+2. **Create new secret key**, copy it (you won't see it again).
+3. Paste into `OPENAI_API_KEY`.
+
+#### b. Atlassian API token — `JIRA_API_TOKEN` *(required — works for BOTH Jira and Confluence)*
+> One Atlassian token covers Jira *and* Confluence. There is **no separate Confluence token**.
+1. Go to <https://id.atlassian.com/manage-profile/security/api-tokens>
+2. **Create API token**, give it a label (e.g. "sprint-scribe"), copy it.
+3. Paste into `JIRA_API_TOKEN`, and set `JIRA_EMAIL` to your Vendasta email.
+4. `JIRA_URL` stays `https://vendasta.jira.com`.
+
+#### c. GitHub personal access token — `GITHUB_TOKEN` *(required)*
+1. Go to <https://github.com/settings/tokens> → **Generate new token (classic)**.
+2. Select the **`repo`** scope (read access to your repos' PRs).
+3. Generate, copy, paste into `GITHUB_TOKEN`.
+4. Set `GITHUB_REPOS` to the comma-separated repos your teams work in (e.g. `reputation,meetings`).
+
+#### d. Google Chat webhook — `GCHAT_WEBHOOK_URL` *(optional — only for digest push)*
+Skip this unless you want the daily digest posted to a Google Chat space.
+1. Open the target Google Chat **space** → space name → **Apps & integrations** → **Manage webhooks**.
+2. **Add webhook**, name it (e.g. "Sprint Scribe"), **Save**, copy the URL.
+3. Paste into `GCHAT_WEBHOOK_URL`.
+
+#### e. Confluence settings *(optional)*
+Uses the Atlassian token from step (b) — no extra token. Only change if you use the
+"wider contributions" view: set `CONFLUENCE_SPACE` to your space key and
+`CONFLUENCE_RFC_PARENT_ID` to your RFC index page ID (leave blank if unused).
 
 > `.env` is gitignored — your tokens never get committed.
 
